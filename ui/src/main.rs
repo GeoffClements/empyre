@@ -1,4 +1,13 @@
 fn main() {
-    let grid = engine::Grid::new_random(2, 2);
+    let mut grid = engine::Grid::new_random(10, 6);
+    println!("{grid}");
+
+    grid = grid.smooth();
+    println!("{grid}");
+    grid = grid.smooth();
+    println!("{grid}");
+    grid = grid.smooth();
+    println!("{grid}");
+    grid = grid.smooth();
     println!("{grid}");
 }

@@ -1,3 +1,3 @@
 mod maps;
 
-pub use maps::Grid;
+pub use maps::{Grid, Position};
