@@ -5,10 +5,26 @@ use std::{
 
 use rand::{distributions::Uniform, Rng};
 
-const DEFAULT_MAP_WIDTH: u16 = 100;
-const DEFAULT_MAP_HEIGHT: u16 = 60;
+pub const DEFAULT_MAP_WIDTH: u16 = 100;
+pub const DEFAULT_MAP_HEIGHT: u16 = 60;
 
 const MAX_HEIGHT: u16 = 999;
+
+pub enum Terrain {
+    Water,
+    Land,
+}
+
+impl Display for Terrain {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let c = match self {
+            Terrain::Land => '+',
+            Terrain::Water => '.',
+        };
+        write!(f, "{c}")?;
+        Ok(())
+    }
+}
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Position {
@@ -105,6 +121,36 @@ impl Grid<u16> {
             map: new_map,
         }
     }
+
+    fn water_height(&self, ratio: u16) -> u16 {
+        for h in 0..MAX_HEIGHT {
+            let below = self.map.iter().filter(|level| **level <= h).count();
+            let above = self.map.iter().filter(|level| **level > h).count();
+            if below * 100 / (above + below) > ratio as usize {
+                return h;
+            }
+        }
+        MAX_HEIGHT
+    }
+
+    pub fn make_terrain(self, water: u16) -> Grid<Terrain> {
+        let wh = self.water_height(water);
+        Grid {
+            width: self.width,
+            height: self.height,
+            map: self
+                .map
+                .iter()
+                .map(|level| {
+                    if *level <= wh {
+                        Terrain::Water
+                    } else {
+                        Terrain::Land
+                    }
+                })
+                .collect(),
+        }
+    }
 }
 
 impl<T> Index<Position> for Grid<T> {
@@ -130,7 +176,7 @@ where
             for w in 0..self.width {
                 write!(
                     f,
-                    "{:3},",
+                    "{}",
                     self[Position {
                         x: w as i16,
                         y: h as i16
