@@ -3,16 +3,24 @@ use std::{
     ops::{Add, Index, IndexMut},
 };
 
-use rand::{distributions::Uniform, Rng};
+use rand::{
+    distributions::Uniform,
+    seq::{IteratorRandom, SliceRandom},
+    Rng,
+};
+
+use crate::pieces::Piece;
 
 pub const DEFAULT_MAP_WIDTH: u16 = 100;
 pub const DEFAULT_MAP_HEIGHT: u16 = 60;
 
 const MAX_HEIGHT: u16 = 999;
 
+#[derive(PartialEq)]
 pub enum Terrain {
     Water,
     Land,
+    Unknown,
 }
 
 impl Display for Terrain {
@@ -20,6 +28,7 @@ impl Display for Terrain {
         let c = match self {
             Terrain::Land => '+',
             Terrain::Water => '.',
+            Terrain::Unknown => ' ',
         };
         write!(f, "{c}")?;
         Ok(())
@@ -36,6 +45,10 @@ impl Position {
     pub fn new(x: i16, y: i16) -> Self {
         Self { x, y }
     }
+
+    fn distance(&self, other: &Self) -> usize {
+        isqrt(((other.x - self.x) ^ 2 + (other.y - self.y) ^ 2) as usize)
+    }
 }
 
 impl Add for Position {
@@ -46,6 +59,32 @@ impl Add for Position {
             x: self.x + rhs.x,
             y: self.y + rhs.y,
         }
+    }
+}
+
+pub struct Location {
+    pos: Position,
+    terrain: Terrain,
+    piece: Option<Piece>,
+}
+
+impl Location {
+    fn new(pos: Position, terrain: Terrain) -> Self {
+        Self {
+            pos,
+            terrain,
+            piece: None,
+        }
+    }
+}
+
+impl Display for Location {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.piece {
+            Some(piece) => piece.fmt(f)?,
+            None => self.terrain.fmt(f)?,
+        };
+        Ok(())
     }
 }
 
@@ -133,7 +172,7 @@ impl Grid<u16> {
         MAX_HEIGHT
     }
 
-    pub fn make_terrain(self, water: u16) -> Grid<Terrain> {
+    pub fn make_terrain(self, water: u16) -> Grid<Location> {
         let wh = self.water_height(water);
         Grid {
             width: self.width,
@@ -141,15 +180,54 @@ impl Grid<u16> {
             map: self
                 .map
                 .iter()
-                .map(|level| {
+                .enumerate()
+                .map(|(idx, level)| {
                     if *level <= wh {
-                        Terrain::Water
+                        Location::new(idx_to_pos(idx, self.width), Terrain::Water)
                     } else {
-                        Terrain::Land
+                        Location::new(idx_to_pos(idx, self.width), Terrain::Land)
                     }
                 })
                 .collect(),
         }
+    }
+}
+
+impl Grid<Location> {
+    pub fn place_cities(&mut self) {
+        let (city_idx, min_city_dist) = {
+            let city_num = ((100 * (self.width + self.height)) / 228) as usize;
+
+            let city_idx: Vec<_> = (0..self.map.len())
+                .filter(|idx| self.map[*idx].terrain == Terrain::Land)
+                .choose_multiple(
+                    &mut rand::thread_rng(),
+                    ((100 * (self.width + self.height)) / 228) as usize,
+                )
+                .into_iter()
+                .map(|idx| idx_to_pos(idx, self.width))
+                .collect();
+
+            let land = self
+                .map
+                .iter()
+                .filter(|l| l.terrain == Terrain::Land)
+                .count()
+                / city_num;
+            (city_idx, isqrt(land))
+        };
+
+        for pos in city_idx {
+            self.put_piece(Piece::City, pos);
+        }
+    }
+
+    fn put_piece(&mut self, piece: Piece, pos: Position) {
+        self[pos].piece = Some(piece);
+    }
+
+    fn remove_piece(&mut self, pos: Position) {
+        self[pos].piece = None;
     }
 }
 
@@ -229,6 +307,24 @@ fn idx_to_pos(idx: usize, width: u16) -> Position {
         x: (idx - (y * width) as usize) as i16,
         y: y as i16,
     }
+}
+
+// See https://en.wikipedia.org/wiki/Integer_square_root
+fn isqrt(val: usize) -> usize {
+    let mut left = 0;
+    let mut mid = 0;
+    let mut right = val + 1;
+
+    while left != right - 1 {
+        mid = (left + right) / 2;
+
+        if mid * mid <= val {
+            left = mid;
+        } else {
+            right = mid;
+        }
+    }
+    left
 }
 
 #[cfg(test)]

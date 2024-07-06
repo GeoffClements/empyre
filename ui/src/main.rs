@@ -10,11 +10,12 @@ struct Cli {
         value_parser = clap::value_parser!(u16).range(0..=90))]
     water: Option<u16>,
 
-    #[arg(short = 's',
+    #[arg(
+        short = 's',
         default_value = "5",
-        help = "Must be greater or equal to zero",
-        value_parser = clap::value_parser!(u16).range(0..))]
-    smooth: Option<u16>
+        help = "Must be greater or equal to zero"
+    )]
+    smooth: Option<u16>,
 }
 
 fn main() {
@@ -25,6 +26,7 @@ fn main() {
         grid = grid.smooth();
     }
 
-    let map = grid.make_terrain(cli.water.unwrap());
+    let mut map = grid.make_terrain(cli.water.unwrap());
+    map.place_cities();
     println!("{map}");
 }
